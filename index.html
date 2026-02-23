@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>萬花筒轉換器</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d0d1a; color: #fff; font-family: -apple-system, sans-serif; min-height: 100vh; }
+  header { text-align: center; padding: 20px 16px 10px; }
+  header h1 { font-size: 1.6rem; background: linear-gradient(135deg, #f093fb, #f5a623, #4facfe); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  header p { color: #888; font-size: 0.85rem; margin-top: 4px; }
+  .upload-area { margin: 12px 16px; border: 2px dashed #444; border-radius: 16px; padding: 28px 16px; text-align: center; cursor: pointer; transition: border-color 0.2s; background: #1a1a2e; }
+  .upload-area:active, .upload-area.drag { border-color: #f093fb; }
+  .upload-area .icon { font-size: 2.5rem; }
+  .upload-area p { color: #aaa; margin-top: 8px; font-size: 0.9rem; }
+  #fileInput { display: none; }
+  .canvas-wrap { margin: 0 16px; border-radius: 16px; overflow: hidden; background: #111; display: flex; align-items: center; justify-content: center; min-height: 300px; }
+  canvas { max-width: 100%; display: block; border-radius: 16px; }
+  .controls { margin: 14px 16px; background: #1a1a2e; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .ctrl-row { display: flex; align-items: center; gap: 10px; }
+  .ctrl-row label { font-size: 0.82rem; color: #bbb; min-width: 80px; }
+  .ctrl-row input[type=range] { flex: 1; -webkit-appearance: none; height: 4px; border-radius: 2px; background: #333; outline: none; }
+  .ctrl-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #f093fb, #4facfe); cursor: pointer; }
+  .ctrl-row .val { font-size: 0.82rem; color: #f093fb; min-width: 30px; text-align: right; }
+  .seg-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .seg-btn { flex: 1; min-width: 44px; padding: 8px 4px; border-radius: 10px; border: 2px solid #333; background: #111; color: #aaa; font-size: 0.9rem; cursor: pointer; transition: all 0.15s; text-align: center; }
+  .seg-btn.active { border-color: #f093fb; color: #f093fb; background: #2a1a2e; }
+  .btn-row { display: flex; gap: 10px; margin: 0 16px 24px; }
+  .btn { flex: 1; padding: 14px; border-radius: 14px; border: none; font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+  .btn:active { opacity: 0.7; }
+  .btn-primary { background: linear-gradient(135deg, #f093fb, #4facfe); color: #fff; }
+  .btn-secondary { background: #1a1a2e; color: #aaa; border: 1px solid #333; }
+  .placeholder { color: #444; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔮 萬花筒轉換器</h1>
+  <p>上傳圖片，生成美麗的萬花筒效果</p>
+</header>
+<div class="upload-area" id="uploadArea">
+  <div class="icon">📷</div>
+  <p>點擊上傳圖片 / 拖曳至此</p>
+  <input type="file" id="fileInput" accept="image/*">
+</div>
+<div class="canvas-wrap" id="canvasWrap">
+  <p class="placeholder">萬花筒效果將顯示在這裡</p>
+</div>
+<div class="controls">
+  <div class="ctrl-row">
+    <label>對稱片數</label>
+    <div class="seg-btns" id="segBtns">
+      <div class="seg-btn active" data-v="6">6</div>
+      <div class="seg-btn" data-v="8">8</div>
+      <div class="seg-btn" data-v="10">10</div>
+      <div class="seg-btn" data-v="12">12</div>
+      <div class="seg-btn" data-v="16">16</div>
+    </div>
+  </div>
+  <div class="ctrl-row">
+    <label>旋轉角度</label>
+    <input type="range" id="rotRange" min="0" max="360" value="0">
+    <span class="val" id="rotVal">0°</span>
+  </div>
+  <div class="ctrl-row">
+    <label>縮放</label>
+    <input type="range" id="zoomRange" min="50" max="200" value="100">
+    <span class="val" id="zoomVal">100%</span>
+  </div>
+  <div class="ctrl-row">
+    <label>偏移 X</label>
+    <input type="range" id="offXRange" min="-100" max="100" value="0">
+    <span class="val" id="offXVal">0</span>
+  </div>
+  <div class="ctrl-row">
+    <label>偏移 Y</label>
+    <input type="range" id="offYRange" min="-100" max="100" value="0">
+    <span class="val" id="offYVal">0</span>
+  </div>
+</div>
+<div class="btn-row">
+  <button class="btn btn-secondary" id="resetBtn">重置</button>
+  <button class="btn btn-primary" id="saveBtn">💾 儲存圖片</button>
+</div>
+<script>
+  let img=null,segments=6,rotation=0,zoom=100,offX=0,offY=0,canvas,ctx;
+  const canvasWrap=document.getElementById('canvasWrap');
+  const uploadArea=document.getElementById('uploadArea');
+  const fileInput=document.getElementById('fileInput');
+  uploadArea.addEventListener('click',()=>fileInput.click());
+  uploadArea.addEventListener('dragover',e=>{e.preventDefault();uploadArea.classList.add('drag');});
+  uploadArea.addEventListener('dragleave',()=>uploadArea.classList.remove('drag'));
+  uploadArea.addEventListener('drop',e=>{e.preventDefault();uploadArea.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+  fileInput.addEventListener('change',e=>{if(e.target.files[0])loadFile(e.target.files[0]);});
+  function loadFile(f){const url=URL.createObjectURL(f);const i=new Image();i.onload=()=>{img=i;initCanvas();draw();};i.src=url;}
+  function initCanvas(){canvasWrap.innerHTML='';const size=Math.min(window.innerWidth-32,500);canvas=document.createElement('canvas');canvas.width=canvas.height=size;ctx=canvas.getContext('2d');canvasWrap.appendChild(canvas);}
+  function draw(){if(!img||!canvas)return;const s=canvas.width;ctx.clearRect(0,0,s,s);ctx.save();ctx.beginPath();ctx.arc(s/2,s/2,s/2,0,Math.PI*2);ctx.clip();const sa=(Math.PI*2)/segments;for(let i=0;i<segments;i++){ctx.save();ctx.translate(s/2,s/2);ctx.rotate(i*sa);ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,s,-sa/2,sa/2);ctx.closePath();ctx.clip();if(i%2===1)ctx.scale(1,-1);const sc=(zoom/100)*(s/Math.min(img.width,img.height));const ix=-img.width/2*sc+(offX/100)*s;const iy=-img.height/2*sc+(offY/100)*s;ctx.rotate((rotation/180)*Math.PI);ctx.drawImage(img,ix,iy,img.width*sc,img.height*sc);ctx.restore();}ctx.restore();const g=ctx.createRadialGradient(s/2,s/2,s*0.4,s/2,s/2,s/2);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,0.35)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(s/2,s/2,s/2,0,Math.PI*2);ctx.fill();}
+  document.getElementById('segBtns').addEventListener('click',e=>{const btn=e.target.closest('.seg-btn');if(!btn)return;document.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');segments=+btn.dataset.v;draw();});
+  function bindRange(id,valId,suffix,setter){const el=document.getElementById(id);const vEl=document.getElementById(valId);el.addEventListener('input',()=>{const v=+el.value;vEl.textContent=v+suffix;setter(v);draw();});}
+  bindRange('rotRange','rotVal','°',v=>rotation=v);
+  bindRange('zoomRange','zoomVal','%',v=>zoom=v);
+  bindRange('offXRange','offXVal','',v=>offX=v);
+  bindRange('offYRange','offYVal','',v=>offY=v);
+  document.getElementById('resetBtn').addEventListener('click',()=>{rotation=0;zoom=100;offX=0;offY=0;document.getElementById('rotRange').value=0;document.getElementById('zoomRange').value=100;document.getElementById('offXRange').value=0;document.getElementById('offYRange').value=0;document.getElementById('rotVal').textContent='0°';document.getElementById('zoomVal').textContent='100%';document.getElementById('offXVal').textContent='0';document.getElementById('offYVal').textContent='0';segments=6;document.querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v==='6'));draw();});
+  document.getElementById('saveBtn').addEventListener('click',()=>{if(!canvas)return;const a=document.createElement('a');a.download='kaleidoscope.png';a.href=canvas.toDataURL('image/png');a.click();});
+</script>
+</body>
+</html>
